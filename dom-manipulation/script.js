@@ -164,7 +164,7 @@ async function fetchQuotesFromServer() {
       quotes = merged;
       saveQuotes();
       populateCategories();
-      showNotification(`✔ Synced ${newCount} new quote(s) from server.`);
+      showNotification("Quotes synced with server!");
     } else {
       showNotification("✔ Already up to date.");
     }
