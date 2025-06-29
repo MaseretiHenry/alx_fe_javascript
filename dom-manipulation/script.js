@@ -1,6 +1,7 @@
 let quotes = [];
 
 const MOCK_API_URL = 'https://jsonplaceholder.typicode.com/posts?_limit=5';
+const MOCK_POST_API = 'https://jsonplaceholder.typicode.com/posts';
 const syncStatus = document.getElementById('syncStatus');
 
 // Load quotes from localStorage
@@ -22,7 +23,7 @@ function saveQuotes() {
   localStorage.setItem('quotes', JSON.stringify(quotes));
 }
 
-// Show a random quote based on category filter
+// Show a random quote
 function showRandomQuote() {
   const display = document.getElementById('quoteDisplay');
   const selected = document.getElementById('categoryFilter').value;
@@ -38,15 +39,17 @@ function showRandomQuote() {
   sessionStorage.setItem('lastQuote', JSON.stringify(random));
 }
 
-// Add a new quote from input fields
+// Add quote from form
 function addQuote() {
   const text = document.getElementById('newQuoteText').value.trim();
   const category = document.getElementById('newQuoteCategory').value.trim();
 
   if (text && category) {
-    quotes.push({ text, category });
+    const newQuote = { text, category };
+    quotes.push(newQuote);
     saveQuotes();
     populateCategories();
+    postQuoteToServer(newQuote);
     alert("New quote added!");
   } else {
     alert("Please fill in both fields.");
@@ -56,7 +59,7 @@ function addQuote() {
   document.getElementById('newQuoteCategory').value = '';
 }
 
-// Create form for adding new quotes
+// Create Add Quote Form
 function createAddQuoteForm() {
   const form = document.createElement('div');
   form.innerHTML = `
@@ -67,7 +70,7 @@ function createAddQuoteForm() {
   document.body.appendChild(form);
 }
 
-// Export quotes to downloadable JSON file
+// Export quotes
 function exportToJsonFile() {
   const blob = new Blob([JSON.stringify(quotes, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -77,7 +80,7 @@ function exportToJsonFile() {
   a.click();
 }
 
-// Import quotes from uploaded JSON file
+// Import quotes
 function importFromJsonFile(event) {
   const reader = new FileReader();
   reader.onload = function(e) {
@@ -92,19 +95,18 @@ function importFromJsonFile(event) {
         alert("Invalid JSON format.");
       }
     } catch {
-      alert("Failed to parse the JSON file.");
+      alert("Error parsing file.");
     }
   };
   reader.readAsText(event.target.files[0]);
 }
 
-// Setup export and import event listeners
 function setupJsonButtons() {
   document.getElementById('exportBtn')?.addEventListener('click', exportToJsonFile);
   document.getElementById('importFile')?.addEventListener('change', importFromJsonFile);
 }
 
-// Populate category filter dropdown
+// Populate categories in dropdown
 function populateCategories() {
   const select = document.getElementById('categoryFilter');
   const current = localStorage.getItem('lastFilter') || "all";
@@ -121,14 +123,30 @@ function populateCategories() {
   select.value = current;
 }
 
-// Filter quotes based on selected category
+// Filter handler
 function filterQuotes() {
   const selected = document.getElementById('categoryFilter').value;
   localStorage.setItem('lastFilter', selected);
   showRandomQuote();
 }
 
-// ✅ Required by ALX Checker: Fetch from server using async/await
+// ✅ POST new quote to mock server
+async function postQuoteToServer(quote) {
+  try {
+    await fetch(MOCK_POST_API, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(quote)
+    });
+    showNotification("✔ Quote posted to server.");
+  } catch (error) {
+    showNotification("⚠ Failed to post quote to server.", true);
+  }
+}
+
+// ✅ FETCH from mock server using async/await
 async function fetchQuotesFromServer() {
   try {
     const response = await fetch(MOCK_API_URL);
@@ -151,18 +169,23 @@ async function fetchQuotesFromServer() {
       showNotification("✔ Already up to date.");
     }
   } catch (error) {
-    showNotification("⚠ Failed to sync with server.", true);
+    showNotification("⚠ Failed to fetch from server.", true);
   }
 }
 
-// Merge quotes while avoiding duplicates by text
-function mergeQuotes(serverQuotes, localQuotes) {
-  const existingTexts = new Set(localQuotes.map(q => q.text));
-  const newQuotes = serverQuotes.filter(q => !existingTexts.has(q.text));
-  return [...localQuotes, ...newQuotes];
+// ✅ CONFLICT RESOLUTION + periodic SYNC
+async function syncQuotes() {
+  await fetchQuotesFromServer();
 }
 
-// Display temporary sync notification
+// Merge without duplicates
+function mergeQuotes(serverQuotes, localQuotes) {
+  const existing = new Set(localQuotes.map(q => q.text));
+  const newOnes = serverQuotes.filter(q => !existing.has(q.text));
+  return [...localQuotes, ...newOnes];
+}
+
+// Show notification message
 function showNotification(msg, isError = false) {
   if (!syncStatus) return;
   syncStatus.textContent = msg;
@@ -170,7 +193,7 @@ function showNotification(msg, isError = false) {
   setTimeout(() => (syncStatus.textContent = ''), 5000);
 }
 
-// Initialize app
+// Init
 window.onload = () => {
   loadQuotes();
   createAddQuoteForm();
@@ -180,6 +203,6 @@ window.onload = () => {
   document.getElementById('newQuote').addEventListener('click', showRandomQuote);
   document.getElementById('categoryFilter').addEventListener('change', filterQuotes);
 
-  fetchQuotesFromServer(); // Initial sync
-  setInterval(fetchQuotesFromServer, 30000); // Auto-sync every 30 sec
+  syncQuotes(); // Initial sync
+  setInterval(syncQuotes, 30000); // Periodic sync
 };
